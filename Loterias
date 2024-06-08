@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from itertools import combinations
 import random
 
-# Autor: Kley da Silva Sousa
+# Autor: Maverick Wolf
 # Data de Criação: 01/06/2024
 # Hora: 14:30
 
