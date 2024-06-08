@@ -1,0 +1,197 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+from itertools import combinations
+import random
+
+# Autor: Kley da Silva Sousa
+# Data de Criação: 01/06/2024
+# Hora: 14:30
+
+def ler_arquivo_excel(file_path):
+    try:
+        df = pd.read_excel(file_path)
+        print("Primeiras linhas do DataFrame:")
+        print(df.head())
+        return df
+    except Exception as e:
+        print(f"Erro ao ler o arquivo Excel: {e}")
+        return None
+
+def verificar_colunas(df, colunas):
+    if not all(col in df.columns for col in colunas):
+        print(f"Colunas esperadas não encontradas no arquivo Excel. Esperado: {colunas}")
+        return False
+    return True
+
+def calcular_frequencia_e_probabilidade(df, colunas_bolas, tamanho_jogo):
+    numeros_sorteados = df[colunas_bolas]
+    frequencia_numeros = numeros_sorteados.apply(pd.value_counts).sum(axis=1).sort_values(ascending=False)
+    total_sorteios = len(numeros_sorteados)
+    probabilidade_numeros = frequencia_numeros / (total_sorteios * tamanho_jogo)
+    return frequencia_numeros, probabilidade_numeros
+
+def exibir_grafico(dados, titulo, xlabel, ylabel, color):
+    plt.figure(figsize=(12, 6))
+    dados.plot(kind='bar', color=color)
+    plt.title(titulo)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.xticks(rotation=0)
+    plt.grid(axis='y')
+    plt.show()
+
+def contar_combinacoes(numeros_sorteados, n):
+    combinacoes_contagem = {}
+    for index, row in numeros_sorteados.iterrows():
+        combinacoes = list(combinations(row, n))
+        for combinacao in combinacoes:
+            combinacao = tuple(sorted(combinacao))
+            if combinacao in combinacoes_contagem:
+                combinacoes_contagem[combinacao] += 1
+            else:
+                combinacoes_contagem[combinacao] = 1
+    return pd.Series(combinacoes_contagem).sort_values(ascending=False)
+
+def exibir_grafico_temporal(frequencia_temporal, titulo):
+    plt.figure(figsize=(12, 6))
+    frequencia_temporal.plot(kind='line', marker='o')
+    plt.title(titulo)
+    plt.xlabel('Data')
+    plt.ylabel('Frequência')
+    plt.grid(axis='both')
+    plt.legend(loc='best')
+    plt.show()
+
+def simulacao_monte_carlo(num_simulacoes, tamanho_jogo, numeros_mais_frequentes):
+    resultados = []
+    for _ in range(num_simulacoes):
+        jogo = random.sample(numeros_mais_frequentes[:20], tamanho_jogo)
+        resultados.append(sorted(jogo))
+    return resultados
+
+def gerar_novos_jogos(metodo, frequencia_numeros, pares, triplas, quadras, quinas, tamanho_jogo):
+    novos_jogos = []
+    numeros_mais_frequentes = frequencia_numeros.index.tolist()
+    if metodo.upper() == 'N':
+        while len(novos_jogos) < 6:
+            jogo = random.sample(numeros_mais_frequentes[:20], tamanho_jogo)
+            if sorted(jogo) not in novos_jogos:
+                novos_jogos.append(sorted(jogo))
+    elif metodo.upper() == 'C':
+        combinacoes_mais_frequentes = pares.head(10).index.tolist() + triplas.head(10).index.tolist() + quadras.head(10).index.tolist() + quinas.head(10).index.tolist()
+        combinacoes_flat = list(set([numero for comb in combinacoes_mais_frequentes for numero in comb]))
+        if len(combinacoes_flat) < tamanho_jogo:
+            combinacoes_flat.extend(numeros_mais_frequentes)
+            combinacoes_flat = list(set(combinacoes_flat))
+        while len(novos_jogos) < 6:
+            jogo = random.sample(combinacoes_flat, tamanho_jogo)
+            if sorted(jogo) not in novos_jogos:
+                novos_jogos.append(sorted(jogo))
+    return novos_jogos
+
+def salvar_analise(output_file, frequencia_numeros, probabilidade_numeros, pares, triplas, quadras, quinas, frequencia_temporal=None, frequencia_trevos=None, probabilidade_trevos=None):
+    with pd.ExcelWriter(output_file) as writer:
+        frequencia_numeros.to_frame('Frequência').to_excel(writer, sheet_name='Frequência_Números')
+        probabilidade_numeros.to_frame('Probabilidade').to_excel(writer, sheet_name='Probabilidade_Números')
+        pares.to_frame('Frequência').to_excel(writer, sheet_name='Pares_Frequentes')
+        triplas.to_frame('Frequência').to_excel(writer, sheet_name='Triplas_Frequentes')
+        quadras.to_frame('Frequência').to_excel(writer, sheet_name='Quadras_Frequentes')
+        quinas.to_frame('Frequência').to_excel(writer, sheet_name='Quinas_Frequentes')
+
+        if frequencia_temporal is not None:
+            frequencia_temporal.to_excel(writer, sheet_name='Frequência_Temporal')
+        if frequencia_trevos is not None:
+            frequencia_trevos.to_frame('Frequência').to_excel(writer, sheet_name='Frequência_Trevos')
+            probabilidade_trevos.to_frame('Probabilidade').to_excel(writer, sheet_name='Probabilidade_Trevos')
+
+    print(f"\nAnálise salva em: {output_file}")
+
+def analisar_jogo(tipo_jogo):
+    jogos = {
+        'M': {'nome': 'Mega-Sena', 'file': 'Mega-Sena.xlsx', 'bolas': 60, 'combinacoes': 50063860, 'tamanho': 6},
+        'L': {'nome': 'Lotofácil', 'file': 'Lotofácil.xlsx', 'bolas': 25, 'combinacoes': 3268760, 'tamanho': 15},
+        'Q': {'nome': 'Quina', 'file': 'Quina.xlsx', 'bolas': 80, 'combinacoes': 2430, 'tamanho': 5},
+        '+': {'nome': '+Milionária', 'file': '+Milionária.xlsx', 'bolas': 50, 'combinacoes': 45057474, 'tamanho': 6, 'trevos': list(range(1, 7))}
+    }
+
+    if tipo_jogo not in jogos:
+        print("Tipo de jogo inválido.")
+        return
+
+    jogo_info = jogos[tipo_jogo]
+    file_path = fr'C:\Python\python_arq\{jogo_info["file"]}'
+    df = ler_arquivo_excel(file_path)
+    if df is None:
+        return
+
+    colunas_bolas = [f'Bola{i}' for i in range(1, jogo_info['tamanho'] + 1)]
+    if tipo_jogo == '+':
+        colunas_trevos = ['Trevo1', 'Trevo2']
+        if not verificar_colunas(df, colunas_bolas + colunas_trevos):
+            return
+    else:
+        if not verificar_colunas(df, colunas_bolas):
+            return
+
+    frequencia_numeros, probabilidade_numeros = calcular_frequencia_e_probabilidade(df, colunas_bolas, jogo_info['tamanho'])
+    print(f"\nFrequência dos números sorteados:\n{frequencia_numeros}")
+    print(f"\nProbabilidade de cada número ser sorteado:\n{probabilidade_numeros}")
+
+    exibir_grafico(frequencia_numeros, f'Frequência dos Números Sorteados na {jogo_info["nome"]}', 'Números', 'Frequência', 'blue')
+    exibir_grafico(probabilidade_numeros, f'Probabilidade dos Números Sorteados na {jogo_info["nome"]}', 'Números', 'Probabilidade', 'green')
+
+    if tipo_jogo == '+':
+        frequencia_trevos, probabilidade_trevos = calcular_frequencia_e_probabilidade(df, colunas_trevos, 2)
+        print(f"\nFrequência dos trevos sorteados:\n{frequencia_trevos}")
+        print(f"\nProbabilidade de cada trevo ser sorteado:\n{probabilidade_trevos}")
+        exibir_grafico(frequencia_trevos, f'Frequência dos Trevos Sorteados na {jogo_info["nome"]}', 'Trevos', 'Frequência', 'purple')
+        exibir_grafico(probabilidade_trevos, f'Probabilidade dos Trevos Sorteados na {jogo_info["nome"]}', 'Trevos', 'Probabilidade', 'orange')
+
+    numeros_sorteados = df[colunas_bolas]
+    pares = contar_combinacoes(numeros_sorteados, 2)
+    triplas = contar_combinacoes(numeros_sorteados, 3)
+    quadras = contar_combinacoes(numeros_sorteados, 4)
+    quinas = contar_combinacoes(numeros_sorteados, 5)
+
+    print(f"\nPares mais frequentes:\n{pares.head(10)}")
+    print(f"\nTriplas mais frequentes:\n{triplas.head(10)}")
+    print(f"\nQuadras mais frequentes:\n{quadras.head(10)}")
+    print(f"\nQuinas mais frequentes:\n{quinas.head(10)}")
+
+    if 'Data Sorteio' in df.columns:
+        df['Data Sorteio'] = pd.to_datetime(df['Data Sorteio'], errors='coerce')
+        df.set_index('Data Sorteio', inplace=True)
+        frequencia_temporal = df.resample('M').sum()
+        exibir_grafico_temporal(frequencia_temporal, f'Frequência dos Números Sorteados ao Longo do Tempo na {jogo_info["nome"]}')
+    else:
+        frequencia_temporal = None
+        print("Coluna 'Data Sorteio' não encontrada no arquivo Excel. Análise temporal não será realizada.")
+
+    num_simulacoes = 10000
+    simulacoes = simulacao_monte_carlo(num_simulacoes, jogo_info['tamanho'], frequencia_numeros.index.tolist())
+    combinacoes_simuladas = pd.Series([tuple(jogo) for jogo in simulacoes]).value_counts()
+    exibir_grafico(combinacoes_simuladas.head(20), f'Simulações de Monte Carlo das Combinações de Números na {jogo_info["nome"]}', 'Combinações', 'Frequência', 'cyan')
+
+    metodo = input("\nDeseja gerar os novos jogos com base nos números mais frequentes (N) ou nas combinações mais frequentes (C)? ")
+    novos_jogos = gerar_novos_jogos(metodo, frequencia_numeros, pares, triplas, quadras, quinas, jogo_info['tamanho'])
+
+    if tipo_jogo == '+':
+        for jogo in novos_jogos:
+            trevos = random.sample(jogo_info['trevos'], 2)
+            jogo.extend(trevos)
+            print(f"Jogo: {sorted(jogo[:-2])}, Trevos: {sorted(jogo[-2:])}")
+    else:
+        print("\n6 Novos Jogos Gerados:")
+        for i, jogo in enumerate(novos_jogos, 1):
+            jogo_formatado = [f"{numero:02d}" for numero in jogo]
+            print(f"Jogo {i}: {jogo_formatado}")
+
+    probabilidade_vitoria = 1 / jogo_info['combinacoes']
+    print(f"\nProbabilidade de vitória (acertar todos os números):\n{probabilidade_vitoria:.15f}")
+
+    output_file = fr'C:\Python\python_arq\Analise_{jogo_info["nome"].replace(" ", "_")}.xlsx'
+    salvar_analise(output_file, frequencia_numeros, probabilidade_numeros, pares, triplas, quadras, quinas, frequencia_temporal, frequencia_trevos if tipo_jogo == '+' else None, probabilidade_trevos if tipo_jogo == '+' else None)
+
+# Executar análise
+tipo_jogo = input("Digite o tipo de jogo ('M' para Mega-Sena, 'L' para Lotofácil, 'Q' para Quina, '+' para +Milionária): ")
+analisar_jogo(tipo_jogo)
